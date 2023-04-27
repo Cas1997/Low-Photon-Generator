@@ -25,7 +25,7 @@ int main(){
 	lowGen.setNEtaBins(100);
 	lowGen.setNPhiBins(100);
 	lowGen.setVerbose(true);
-	// Do the Init. Don't forget this
+	// Initialize the Low Photon Generator
 	lowGen.Init();
 
 	for (int iEvent = 0; iEvent < nEvent; ++iEvent) {
