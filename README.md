@@ -3,7 +3,7 @@ An addition to PYTHIA 8.3 that will generate the soft photons from the inner bre
 
 ## How to run
 
-This program can be run by adding it to the exampels folder of pythia and adding the following lines to the makefile
+This program can be build by adding it to the exampels folder of pythia and adding the following lines to the makefile
 ```make
 # Low Photon Gen
 low_run: $(PYTHIA) low_run.cc low_Gen.cc
