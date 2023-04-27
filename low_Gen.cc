@@ -1,12 +1,5 @@
 #include "low_Gen.h"
 
-using std::chrono::high_resolution_clock;
-using std::chrono::duration_cast;
-using std::chrono::duration;
-using std::chrono::milliseconds;
-// This version of the Low Photon Generator still contains the timing checks
-
-
 GeneratorLow::GeneratorLow(){ 
 	// Default values. After changing them with the set functions, call Init();
 	
@@ -297,9 +290,9 @@ void GeneratorLow::generatePhotons(Pythia* pythia){
 	setPythiaStackPtr(pythia);
 
 	int ndp = mPythia->event.size(); // Number of particles
-	std::cout << "Number of particles: " << ndp << std::endl;
-
-	auto t1 = high_resolution_clock::now();
+	if(verbose){
+		std::cout << "Number of particles: " << ndp << std::endl;
+	}
 
 	// Create the particle list of particles to be considered. Doing this once speeds up the process
 	for(int ip = 1; ip < ndp; ip++){
@@ -307,10 +300,6 @@ void GeneratorLow::generatePhotons(Pythia* pythia){
 			chargedPartList.push_back(ip);
 		}
 	}
-	auto t2 = high_resolution_clock::now();
-	duration<double, std::milli> particle_list_loop = t2 - t1;
-	std::cout << "Particle list made. Took " << particle_list_loop.count() << " ms" << std::endl;
-
 
 	double dNPhot = 0.; 	// d number of photons
 	int NPhot = 0; 		// Final number of photons
@@ -318,8 +307,6 @@ void GeneratorLow::generatePhotons(Pythia* pythia){
 	double photTheta;		// Theta of the emitted photon
 	double photPhi; 		// Phi of the emitted photon
 	double thisPhotE; 	// Energy of the emitted photon
-
-	auto t3 = high_resolution_clock::now();
 
 	// Via Low's theorem, calculate how many photons are emitted
 	double integralEtaPhiGamma = 0;
@@ -334,29 +321,20 @@ void GeneratorLow::generatePhotons(Pythia* pythia){
 		}
 	}
 
-	auto t4 = high_resolution_clock::now();
-	duration<double, std::milli> low_eval_loop = t4 - t3;
-	std::cout << "Evaluated Low's theorem and filled the grid. Took " << low_eval_loop.count() << " ms" << std::endl;
-
 	// Number of photons of this (Px, Py, Pz) photon energy times delta phi delta eta
 	dNPhot = integralEtaPhiGamma * probePhotE * (log(Eend) - log(Ebeg));
 	NPhot = poisson(dNPhot);
-
-	std::cout << "Expected number of photons dNPhot: " << dNPhot << std::endl;
-	std::cout << "Number of photons after Poisson " << NPhot << std::endl;
+	if(verbose){
+		std::cout << "Expected number of photons dNPhot: " << dNPhot << std::endl;
+		std::cout << "Number of photons after Poisson " << NPhot << std::endl;
+	}
 
 	// Add photons
 	for(int i = 0; i < NPhot; i++){
 		// Pick a random value from the Energy distribution for the energy of the photon
 		int EBin = -1;
 
-		auto t5 = high_resolution_clock::now();
-
 		getRandom(energyArray, EBin); // Get a random bin from the distribution
-
-		auto t6 = high_resolution_clock::now();
-		duration<double, std::milli> getRandom_E_loop = t6 - t5;
-		std::cout << "Got a random value for the energy. Took " << getRandom_E_loop.count() << " ms" << std::endl;
 
 		double EBinBegin, EBinEnd;
 		getBinRange1D(EBin, EBinBegin, EBinEnd); // Get the range of that bin
@@ -365,24 +343,12 @@ void GeneratorLow::generatePhotons(Pythia* pythia){
 		double EMaxVal = evalEDist(EtoEval); // Calculate the max value in that bin
 		double sampledE[1] = {0.};
 
-		auto t7 = high_resolution_clock::now();
-
 		rejectSample(1, EMaxVal, rangeE, sampledE, 1); // Perform rejection sampling over this range
-
-		auto t8 = high_resolution_clock::now();
-		duration<double, std::milli> rejectSample_E_loop = t8 - t7;
-		std::cout << "rejectSampled a value for E. Took " << rejectSample_E_loop.count() << " ms" << std::endl;
 
 		// Pick a random value for eta and phi based on the etaPhiGamma2DArray
 		int etaBin, phiBin;
 
-		auto t9 = high_resolution_clock::now();
-
 		getRandom2(etaPhiGamma2DArray, etaBin, phiBin); // Get a random phi and eta bin based on the etaPhiGammaArray
-
-		auto t10 = high_resolution_clock::now();
-		duration<double, std::milli> getRandom_EtaPhi_loop = t10 - t9;
-		std::cout << "Got random values for Eta and Phi. Took " << getRandom_EtaPhi_loop.count() << " ms" << std::endl;
 
 		double etaBinCenter, phiBinCenter;
 		getBinCenters2D(etaBin, phiBin, etaBinCenter, phiBinCenter); // Get the values for the bin center
@@ -392,14 +358,8 @@ void GeneratorLow::generatePhotons(Pythia* pythia){
 		double etaPhiToEval[2] = {etaBinCenter, phiBinCenter};
 		double etaPhiMaxVal = evalLow(etaPhiToEval); // Evaluate Low at the Bin centers 
 		double sampledEtaPhi[2] = {0., 0.};
-		
-		auto t11 = high_resolution_clock::now();
 
 		rejectSample(0, 3. * etaPhiMaxVal, rangeEtaPhi, sampledEtaPhi, 2); // Perform rejection sampling over this bin
-
-		auto t12 = high_resolution_clock::now();
-		duration<double, std::milli> rejectSample_EtaPhi_loop = t12 - t11;
-		std::cout << "RejectSampled for Eta and Phi. Took " << rejectSample_EtaPhi_loop.count() << " ms" << std::endl;
 
 		photTheta = 2 * atan(exp(-sampledEtaPhi[0]));
 		photEta = sampledEtaPhi[0];
@@ -411,7 +371,6 @@ void GeneratorLow::generatePhotons(Pythia* pythia){
 		double thisPhotPy = thisPhotE * sin(photPhi) * sin(photTheta);
 		double thisPhotPz = thisPhotE * cos(photTheta);
 		
-
 		// Add particle to the event (or stack)
 		mPythia->event.append(photID, photStatus, photMother1, photMother2, photDaughter1, photDaughter2, 
 							photCol, photACol, thisPhotPx, thisPhotPy, thisPhotPz, thisPhotE, photM,
@@ -440,7 +399,3 @@ void GeneratorLow::generatePhotons(Pythia* pythia){
 
 	return;
 }
-
-
-
-
